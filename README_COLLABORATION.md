@@ -71,3 +71,13 @@ Then your React components can hit `http://localhost:8000/api/...` without issue
 2.  Run `npm install` inside `frontend/`.
 3.  Check out a new branch (`git checkout -b feature/civilian-init`).
 4.  Navigate to `frontend/src/pages/Civilian/` and create your first page!
+
+---
+
+## 4. PR & Commit Conventions
+
+To ensure clean project history and avoid conflicts:
+- **Prefix Commits**: Use conventional commits format (`feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`).
+- **Atomic Commits**: Keep changes focused on a single feature or fix per commit.
+- **PR Description**: Include a summary of components modified and testing steps performed.
+
