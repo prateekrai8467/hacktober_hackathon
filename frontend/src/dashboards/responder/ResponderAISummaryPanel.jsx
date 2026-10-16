@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Brain,
     Sparkles,
@@ -6,7 +6,9 @@ import {
     CheckCircle2,
     MapPin,
     ArrowRight,
-    Lock
+    Lock,
+    RefreshCw,
+    AlertCircle
 } from 'lucide-react';
 import { listIncidentReports, getIncidentReportDetail } from '../../services/sahayak';
 
@@ -28,68 +30,129 @@ const getUrgencyBadge = (urgency) => {
 export const ResponderAISummaryPanel = () => {
     const [incident, setIncident] = useState(null);
     const [assessment, setAssessment] = useState(null);
-    const [hasLoaded, setHasLoaded] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [fetchError, setFetchError] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
+
+    const fetchLatestIncidentAssessment = useCallback(async (isManualRefresh = false) => {
+        // Prevent concurrent or duplicate in-flight requests
+        if (isManualRefresh && isRefreshing) return;
+        if (!isManualRefresh && !isLoading && !lastUpdated) return;
+
+        if (isManualRefresh) {
+            setIsRefreshing(true);
+        } else {
+            setIsLoading(true);
+        }
+        setFetchError(null);
+
+        try {
+            const reports = await listIncidentReports({ limit: 5 });
+
+            if (!reports || reports.length === 0) {
+                setIncident(null);
+                setAssessment(null);
+                setLastUpdated(new Date());
+                setIsLoading(false);
+                setIsRefreshing(false);
+                return;
+            }
+
+            let foundAssessment = false;
+            for (const rep of reports) {
+                try {
+                    const detail = await getIncidentReportDetail(rep.id);
+                    if (detail && detail.assessments && detail.assessments.length > 0) {
+                        setIncident(detail.report);
+                        setAssessment(detail.assessments[0]);
+                        foundAssessment = true;
+                        break;
+                    }
+                } catch {
+                    // Continue checking next available report
+                }
+            }
+
+            if (!foundAssessment) {
+                setIncident(reports[0]);
+                setAssessment(null);
+            }
+
+            setLastUpdated(new Date());
+        } catch (err) {
+            setFetchError(err.message || 'Unable to connect to the Sahayak crisis intelligence service.');
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, [isLoading, isRefreshing, lastUpdated]);
 
     useEffect(() => {
-        let isMounted = true;
+        fetchLatestIncidentAssessment(false);
+    }, [fetchLatestIncidentAssessment]);
 
-        async function fetchLatestIncidentAssessment() {
-            try {
-                const reports = await listIncidentReports({ limit: 5 });
-                if (!isMounted) return;
+    // Handle Manual Refresh
+    const handleRefresh = (e) => {
+        if (e) e.preventDefault();
+        if (isLoading || isRefreshing) return; // Prevent duplicate requests
+        fetchLatestIncidentAssessment(true);
+    };
 
-                if (!reports || reports.length === 0) {
-                    setHasLoaded(true);
-                    return;
-                }
-
-                // Check recent reports for the latest with an assessment
-                for (const rep of reports) {
-                    try {
-                        const detail = await getIncidentReportDetail(rep.id);
-                        if (!isMounted) return;
-
-                        if (detail && detail.assessments && detail.assessments.length > 0) {
-                            setIncident(detail.report);
-                            setAssessment(detail.assessments[0]);
-                            setHasLoaded(true);
-                            return;
-                        }
-                    } catch {
-                        // Continue checking next report
-                    }
-                }
-
-                // If no report has assessments, show latest report with null assessment
-                if (reports.length > 0) {
-                    setIncident(reports[0]);
-                }
-                setHasLoaded(true);
-            } catch {
-                if (isMounted) setHasLoaded(true);
-            }
-        }
-
-        fetchLatestIncidentAssessment();
-        return () => { isMounted = false; };
-    }, []);
-
-    if (!hasLoaded) {
+    // 1. Initial Loading State
+    if (isLoading && !lastUpdated) {
         return (
-            <div className="bg-graphite rounded-3xl p-5 border border-gray-800 shadow-glow text-ghost/50 text-xs font-data">
-                Loading latest AI incident review...
+            <div className="bg-graphite rounded-3xl p-6 border border-gray-800 shadow-glow flex items-center justify-center gap-3 text-ghost/60 text-xs font-data py-8">
+                <RefreshCw className="w-4 h-4 animate-spin text-plasma" />
+                <span>Loading latest AI incident review...</span>
             </div>
         );
     }
 
+    // 2. Fetch Error State with Retry
+    if (fetchError && !assessment) {
+        return (
+            <div className="bg-graphite rounded-3xl p-5 border border-alert-red/30 shadow-glow text-xs font-sora">
+                <div className="flex items-center gap-2 mb-2 text-alert-red font-heading font-semibold">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Failed to Load AI Review</span>
+                </div>
+                <p className="text-ghost/70 mb-3 text-[11px] leading-relaxed">
+                    {fetchError}
+                </p>
+                <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="px-3.5 py-1.5 rounded-xl bg-alert-red/10 hover:bg-alert-red/20 border border-alert-red/30 text-alert-red font-data text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshing ? 'Retrying...' : 'Retry Connection'}</span>
+                </button>
+            </div>
+        );
+    }
+
+    // 3. Empty State (No assessments found)
     if (!assessment) {
         return (
             <div className="bg-graphite rounded-3xl p-5 border border-gray-800 shadow-glow">
-                <div className="flex items-center gap-2 mb-2 text-plasma">
-                    <Brain className="w-5 h-5" />
-                    <h3 className="font-heading font-bold text-sm text-ghost">
-                        Sahayak AI Review Summary
-                    </h3>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 text-plasma">
+                        <Brain className="w-5 h-5" />
+                        <h3 className="font-heading font-bold text-sm text-ghost">
+                            Sahayak AI Review Summary
+                        </h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="p-1.5 rounded-lg bg-void/50 hover:bg-void text-ghost/60 hover:text-plasma border border-ghost/10 transition-colors cursor-pointer disabled:opacity-50"
+                        title="Refresh incident assessment"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
                 </div>
                 <p className="text-ghost/50 text-xs font-sora">
                     No AI assessment available for recent ground incidents.
@@ -101,11 +164,12 @@ export const ResponderAISummaryPanel = () => {
     const ext = assessment.structured_extraction || {};
     const urgencyClass = getUrgencyBadge(ext.urgency_level);
 
+    // 4. Populated Assessment View
     return (
         <div className="bg-graphite rounded-3xl p-5 md:p-6 border border-plasma/30 shadow-glow">
-            {/* Header */}
+            {/* Header with Title and Working Refresh Button */}
             <div className="flex items-center justify-between gap-3 pb-3 mb-4 border-b border-gray-800">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <Brain className="w-5 h-5 text-plasma" />
                     <h3 className="font-heading font-bold text-sm text-ghost">
                         Sahayak AI Review Summary
@@ -115,12 +179,38 @@ export const ResponderAISummaryPanel = () => {
                     </code>
                 </div>
 
-                {assessment.is_genuine_inference && (
-                    <span className="text-[10px] font-data text-alert-green bg-alert-green/10 px-2 py-0.5 rounded border border-alert-green/20 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Genuine AI
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {assessment.is_genuine_inference && (
+                        <span className="text-[10px] font-data text-alert-green bg-alert-green/10 px-2 py-0.5 rounded border border-alert-green/20 hidden sm:inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Genuine AI
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="p-1.5 rounded-lg bg-void/60 hover:bg-void text-ghost/60 hover:text-plasma border border-ghost/10 transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1 text-[11px] font-data"
+                        title="Refresh latest incident review"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 text-plasma ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <span className="hidden md:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                    </button>
+                </div>
             </div>
+
+            {/* In-Flight Soft Refresh Error Notice */}
+            {fetchError && (
+                <div className="mb-3 p-2.5 rounded-xl bg-alert-red/10 border border-alert-red/20 text-[11px] text-alert-red font-sora flex items-center justify-between gap-2">
+                    <span className="truncate">Refresh failed: {fetchError}</span>
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        className="underline hover:text-ghost flex-shrink-0 cursor-pointer"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
 
             {/* Target Incident Meta */}
             {incident && (
@@ -157,12 +247,14 @@ export const ResponderAISummaryPanel = () => {
                 </p>
             </div>
 
-            {/* Read-Only Dispatch Note */}
+            {/* Read-Only Dispatch Note & Refresh Timestamp */}
             <div className="pt-2 border-t border-gray-800 flex items-center justify-between gap-2 text-[10px] font-data text-ghost/40">
                 <span className="flex items-center gap-1">
                     <Lock className="w-3 h-3 text-alert-yellow" /> Read-Only Field Responder View
                 </span>
-                <span>ID: {incident?.id ? incident.id.slice(0, 8) + '...' : ''}</span>
+                <span>
+                    {lastUpdated ? `Updated: ${lastUpdated.toLocaleTimeString()}` : ''}
+                </span>
             </div>
         </div>
     );
