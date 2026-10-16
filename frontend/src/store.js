@@ -1,5 +1,15 @@
 import { create } from 'zustand';
 
+/**
+ * @typedef {Object} GlobalStore
+ * @property {string|null} activeEventId - ID of currently selected disaster event
+ * @property {boolean} isAnalyzing - Indicates active satellite/AI analysis processing
+ * @property {Array} events - List of active disaster events
+ * @property {Array} alerts - List of threshold-triggered alert notifications
+ * @property {Object|null} activeEventDetails - Extended metadata for selected event
+ * @property {Object|null} analysisData - Damage assessment indices and imagery data
+ * @property {boolean} wsConnected - Live WebSocket connection status
+ */
 export const useStore = create((set) => ({
     // Core state
     activeEventId: null,
@@ -20,6 +30,10 @@ export const useStore = create((set) => ({
     isChatOpen: false,
 
     // Actions
+    /**
+     * Set the currently active disaster event and trigger intelligence retrieval
+     * @param {string|null} id
+     */
     setActiveEventId: (id) => {
         set({ activeEventId: id, analysisData: null });
         if (id) {
