@@ -14,7 +14,7 @@ import {
     ChevronRight,
     X,
     FileText,
-    Cpu,
+    Brain,
     Camera
 } from 'lucide-react';
 import {
@@ -23,6 +23,7 @@ import {
     removeTrackedReportId,
     getIncidentReportDetail
 } from '../../services/sahayak';
+import GemmaAssessmentViewer from './GemmaAssessmentViewer';
 
 // Status badge styling helper
 const getStatusBadge = (status) => {
@@ -102,6 +103,7 @@ export const IncidentHistory = ({ refreshTrigger }) => {
 
     // Selected report for detail modal
     const [selectedReportDetail, setSelectedReportDetail] = useState(null);
+    const [detailTab, setDetailTab] = useState('gemma_ai'); // 'gemma_ai' or 'record'
 
     // Fetch reports for all tracked IDs
     const loadTrackedReports = useCallback(async (isManualRefresh = false) => {
@@ -163,25 +165,19 @@ export const IncidentHistory = ({ refreshTrigger }) => {
         }
     }, []);
 
-    // Load on mount and when refreshTrigger changes (e.g. after new submission)
+    // Load on mount and when refreshTrigger changes
     useEffect(() => {
         loadTrackedReports(false);
     }, [loadTrackedReports, refreshTrigger]);
 
-    // Handle Manual Search by ID
-    const handleSearchById = async (e) => {
-        e.preventDefault();
+    // Handle Search by ID helper
+    const searchReportById = async (targetId) => {
         setSearchError(null);
         setSearchSuccess(null);
-
-        const cleanId = searchId.trim();
-        if (!cleanId) {
-            setSearchError('Please enter a valid Report ID.');
-            return;
-        }
+        const cleanId = targetId.trim();
+        if (!cleanId) return;
 
         setIsSearching(true);
-
         try {
             const detail = await getIncidentReportDetail(cleanId);
             if (detail && detail.report) {
@@ -189,12 +185,12 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                 setSearchSuccess(`Successfully tracked report: "${detail.report.title || detail.report.id.slice(0, 8)}"`);
                 setSearchId('');
                 await loadTrackedReports(true);
-                // Open detail view for discovered report
                 setSelectedReportDetail({
                     ...detail.report,
                     assessments: detail.assessments || [],
                     reviews: detail.reviews || []
                 });
+                setDetailTab(detail.assessments && detail.assessments.length > 0 ? 'gemma_ai' : 'record');
             } else {
                 setSearchError(`Report '${cleanId}' was not found in the crisis intake ledger.`);
             }
@@ -205,6 +201,12 @@ export const IncidentHistory = ({ refreshTrigger }) => {
         }
     };
 
+    // Manual Form Search
+    const handleSearchById = async (e) => {
+        e.preventDefault();
+        searchReportById(searchId);
+    };
+
     // Remove report from device history
     const handleRemoveTracked = (id, e) => {
         if (e) e.stopPropagation();
@@ -213,6 +215,12 @@ export const IncidentHistory = ({ refreshTrigger }) => {
         if (selectedReportDetail?.id === id) {
             setSelectedReportDetail(null);
         }
+    };
+
+    // Open detail view and choose default tab
+    const handleSelectReport = (report) => {
+        setSelectedReportDetail(report);
+        setDetailTab(report.assessments && report.assessments.length > 0 ? 'gemma_ai' : 'record');
     };
 
     return (
@@ -227,7 +235,7 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                         </h2>
                     </div>
                     <p className="text-ghost/60 font-sora text-sm">
-                        Track ground truth incident reports submitted on this device with real-time processing statuses.
+                        Track ground truth incident reports submitted on this device with real-time processing statuses and Gemma 4 evidence assessments.
                     </p>
                 </div>
 
@@ -250,7 +258,7 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                 </div>
             </div>
 
-            {/* Privacy Requirement Banner (Step 3) */}
+            {/* Privacy Notice Banner */}
             <div className="bg-void/60 border border-ghost/10 rounded-2xl p-4 mb-6 flex items-start gap-3 text-xs font-sora text-ghost/70">
                 <Shield className="w-5 h-5 text-plasma flex-shrink-0 mt-0.5" />
                 <div>
@@ -259,7 +267,6 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                     </strong>
                     This section tracks disaster reports initiated from this browser session or linked by Report ID.
                     For civilian privacy, incident identifiers are stored locally on your device rather than tied to an open public profile.
-                    To track an incident submitted elsewhere, use the search tool below.
                 </div>
             </div>
 
@@ -322,7 +329,6 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                     <span>Synchronizing tracked reports with Sahayak crisis ledger...</span>
                 </div>
             ) : reports.length === 0 ? (
-                /* Empty State */
                 <div className="bg-void/40 border border-dashed border-ghost/15 rounded-2xl p-10 text-center space-y-3">
                     <FileText className="w-10 h-10 text-ghost/20 mx-auto" />
                     <h3 className="font-heading font-semibold text-ghost text-sm">
@@ -338,6 +344,7 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                         const statusBadge = getStatusBadge(report.status);
                         const severityClass = getSeverityBadge(report.severity_claimed);
                         const isSelected = selectedReportDetail?.id === report.id;
+                        const hasAssessment = report.assessments && report.assessments.length > 0;
 
                         if (report.isNotFound) {
                             return (
@@ -364,7 +371,7 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                         return (
                             <div
                                 key={report.id}
-                                onClick={() => setSelectedReportDetail(report)}
+                                onClick={() => handleSelectReport(report)}
                                 className={`bg-void rounded-2xl p-4 md:p-5 border transition-all cursor-pointer hover:border-plasma/40 ${
                                     isSelected ? 'border-plasma ring-1 ring-plasma/50 bg-void/90' : 'border-ghost/10 hover:bg-void/80'
                                 }`}
@@ -380,6 +387,12 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                                         <span className="px-2 py-0.5 rounded text-[10px] font-data uppercase bg-ghost/5 text-ghost/70 border border-ghost/10">
                                             {report.category}
                                         </span>
+                                        {hasAssessment && (
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-data uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                                                <Brain className="w-3 h-3 text-purple-400" />
+                                                Gemma 4 Evaluated
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Status Badge */}
@@ -410,8 +423,8 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                                     </div>
 
                                     <div className="flex items-center gap-3">
-                                        <span className="text-plasma hover:underline flex items-center gap-1 text-xs">
-                                            View Details <ChevronRight className="w-3.5 h-3.5" />
+                                        <span className="text-plasma hover:underline flex items-center gap-1 text-xs font-semibold">
+                                            Inspect Assessment <ChevronRight className="w-3.5 h-3.5" />
                                         </span>
                                         <button
                                             type="button"
@@ -430,147 +443,171 @@ export const IncidentHistory = ({ refreshTrigger }) => {
             )}
 
             {/* ----------------------------------------------------------------- */}
-            {/* INCIDENT DETAILS DRAWER / MODAL (Step 5)                          */}
+            {/* INCIDENT DETAILS & GEMMA 4 ASSESSMENT VIEWER MODAL (Commit 3)     */}
             {/* ----------------------------------------------------------------- */}
             {selectedReportDetail && (
-                <div className="fixed inset-0 bg-void/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-graphite border border-plasma/30 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-2xl relative custom-scrollbar">
+                <div className="fixed inset-0 bg-void/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+                    <div className="bg-graphite border border-plasma/30 rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto p-5 md:p-8 shadow-2xl relative custom-scrollbar">
                         {/* Close button */}
                         <button
                             type="button"
                             onClick={() => setSelectedReportDetail(null)}
-                            className="absolute top-5 right-5 p-2 rounded-xl bg-void/50 hover:bg-void text-ghost/60 hover:text-ghost transition-colors border border-ghost/10"
+                            className="absolute top-5 right-5 p-2 rounded-xl bg-void/50 hover:bg-void text-ghost/60 hover:text-ghost transition-colors border border-ghost/10 z-10 cursor-pointer"
                         >
                             <X className="w-5 h-5" />
                         </button>
 
                         {/* Modal Header */}
-                        <div className="mb-6">
-                            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-data bg-plasma/10 text-plasma border border-plasma/20 mb-2">
-                                <FileText className="w-3.5 h-3.5" />
-                                INCIDENT RECORD
+                        <div className="mb-5 pr-10">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-data bg-plasma/10 text-plasma border border-plasma/20">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    INCIDENT DOSSIER
+                                </span>
+                                {selectedReportDetail.is_synthetic && (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-data bg-alert-yellow/15 text-alert-yellow border border-alert-yellow/30 uppercase">
+                                        Synthetic Test Fixture
+                                    </span>
+                                )}
                             </div>
-                            <h3 className="text-2xl font-heading font-bold text-ghost">
-                                {selectedReportDetail.title || `${selectedReportDetail.category.toUpperCase()} Incident`}
+                            <h3 className="text-xl md:text-2xl font-heading font-bold text-ghost">
+                                {selectedReportDetail.title || `${selectedReportDetail.category?.toUpperCase()} Incident`}
                             </h3>
                             <div className="text-xs font-data text-ghost/50 mt-1 break-all">
-                                Report ID: <span className="text-plasma">{selectedReportDetail.id}</span>
+                                Report ID: <span className="text-plasma font-semibold">{selectedReportDetail.id}</span>
                             </div>
                         </div>
 
-                        {/* Status & Severity Bar */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 p-4 rounded-2xl bg-void border border-ghost/10 font-data text-xs">
-                            <div>
-                                <span className="text-ghost/40 block mb-1">Current Status</span>
-                                <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold inline-block ${getStatusBadge(selectedReportDetail.status).classes}`}>
-                                    {getStatusBadge(selectedReportDetail.status).label}
+                        {/* Modal Navigation Tabs: [ Gemma 4 AI Intelligence ] vs [ Original Submission Record ] */}
+                        <div className="flex items-center gap-2 mb-6 border-b border-ghost/10 pb-3">
+                            <button
+                                type="button"
+                                onClick={() => setDetailTab('gemma_ai')}
+                                className={`px-4 py-2 rounded-xl text-xs font-heading font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+                                    detailTab === 'gemma_ai'
+                                        ? 'bg-plasma/20 text-plasma border border-plasma/40 shadow-glow font-bold'
+                                        : 'bg-void text-ghost/60 hover:text-ghost border border-ghost/10'
+                                }`}
+                            >
+                                <Brain className="w-4 h-4 text-plasma" />
+                                <span>Gemma 4 AI Assessment</span>
+                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-data bg-ghost/10 text-ghost">
+                                    {selectedReportDetail.assessments?.length || 0}
                                 </span>
-                            </div>
-                            <div>
-                                <span className="text-ghost/40 block mb-1">Claimed Severity</span>
-                                <span className={`px-2 py-0.5 rounded border text-[11px] font-semibold uppercase inline-block ${getSeverityBadge(selectedReportDetail.severity_claimed)}`}>
-                                    {selectedReportDetail.severity_claimed}
-                                </span>
-                            </div>
-                            <div className="col-span-2 sm:col-span-1">
-                                <span className="text-ghost/40 block mb-1">Disaster Category</span>
-                                <span className="text-ghost font-semibold uppercase">
-                                    {selectedReportDetail.category}
-                                </span>
-                            </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setDetailTab('record')}
+                                className={`px-4 py-2 rounded-xl text-xs font-heading font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+                                    detailTab === 'record'
+                                        ? 'bg-plasma/20 text-plasma border border-plasma/40 shadow-glow font-bold'
+                                        : 'bg-void text-ghost/60 hover:text-ghost border border-ghost/10'
+                                }`}
+                            >
+                                <FileText className="w-4 h-4" />
+                                <span>Original Ground Record</span>
+                            </button>
                         </div>
 
-                        {/* Detailed Description */}
-                        <div className="space-y-4 mb-6 text-sm font-sora">
-                            <div>
-                                <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5">
-                                    Original Incident Description
-                                </h4>
-                                <p className="text-ghost/90 leading-relaxed bg-void/50 p-4 rounded-xl border border-ghost/10 whitespace-pre-wrap">
-                                    {selectedReportDetail.description}
-                                </p>
+                        {/* TAB 1: GEMMA 4 ASSESSMENT VIEWER */}
+                        {detailTab === 'gemma_ai' ? (
+                            <div className="mb-6">
+                                <GemmaAssessmentViewer
+                                    report={selectedReportDetail}
+                                    assessments={selectedReportDetail.assessments || []}
+                                    onTrackReportId={(id) => searchReportById(id)}
+                                />
                             </div>
-
-                            {/* Location & Coordinates */}
-                            <div>
-                                <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5">
-                                    Location Telemetry
-                                </h4>
-                                <div className="p-3.5 rounded-xl bg-void/50 border border-ghost/10 text-xs font-data space-y-1">
-                                    <div className="flex items-center gap-1.5 text-ghost">
-                                        <MapPin className="w-4 h-4 text-plasma" />
-                                        <span>{selectedReportDetail.location_name}</span>
-                                    </div>
-                                    {selectedReportDetail.lat && selectedReportDetail.lon && (
-                                        <div className="text-ghost/50 pl-5">
-                                            GPS: {Number(selectedReportDetail.lat).toFixed(6)}°, {Number(selectedReportDetail.lon).toFixed(6)}°
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Attached Photograph if any */}
-                            {selectedReportDetail.photo_url && (
-                                <div>
-                                    <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                        <Camera className="w-4 h-4 text-plasma" />
-                                        Submitted Photograph
-                                    </h4>
-                                    <div className="p-2 rounded-xl bg-void/50 border border-ghost/10">
-                                        <img
-                                            src={selectedReportDetail.photo_url}
-                                            alt="Incident evidence"
-                                            className="max-h-56 rounded-lg object-cover w-full"
-                                            onError={(e) => {
-                                                e.target.style.display = 'none';
-                                            }}
-                                        />
-                                        <a
-                                            href={selectedReportDetail.photo_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[11px] text-plasma hover:underline mt-2 font-data"
-                                        >
-                                            <ExternalLink className="w-3 h-3" /> View full photo
-                                        </a>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Concise Assessment Availability Indicator (Step 5) */}
-                            <div>
-                                <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                    <Cpu className="w-4 h-4 text-plasma" />
-                                    Crisis Intelligence Status
-                                </h4>
-                                {selectedReportDetail.assessments && selectedReportDetail.assessments.length > 0 ? (
-                                    <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs font-sora">
-                                        <div className="flex items-center gap-2 text-purple-300 font-semibold mb-1">
-                                            <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                                            <span>AI Evidence Assessment Recorded</span>
-                                        </div>
-                                        <p className="text-ghost/70">
-                                            Model: <code className="text-plasma">{selectedReportDetail.assessments[0].model_version}</code>.
-                                            Evidence-linked findings are currently available on the responder dispatch console.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="p-3.5 rounded-xl bg-void/50 border border-ghost/10 text-xs font-sora text-ghost/60 flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-alert-orange flex-shrink-0" />
-                                        <span>
-                                            Pending Automated Analysis — Report is queued in the crisis intake pipeline.
+                        ) : (
+                            /* TAB 2: ORIGINAL GROUND RECORD */
+                            <div className="space-y-5 mb-6 text-sm font-sora">
+                                {/* Status & Category Bar */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-void border border-ghost/10 font-data text-xs">
+                                    <div>
+                                        <span className="text-ghost/40 block mb-1">Current Status</span>
+                                        <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold inline-block ${getStatusBadge(selectedReportDetail.status).classes}`}>
+                                            {getStatusBadge(selectedReportDetail.status).label}
                                         </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-ghost/40 block mb-1">Claimed Severity</span>
+                                        <span className={`px-2 py-0.5 rounded border text-[11px] font-semibold uppercase inline-block ${getSeverityBadge(selectedReportDetail.severity_claimed)}`}>
+                                            {selectedReportDetail.severity_claimed}
+                                        </span>
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <span className="text-ghost/40 block mb-1">Disaster Category</span>
+                                        <span className="text-ghost font-semibold uppercase">
+                                            {selectedReportDetail.category}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Detailed Description */}
+                                <div>
+                                    <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5">
+                                        Original Incident Description
+                                    </h4>
+                                    <p className="text-ghost/90 leading-relaxed bg-void/50 p-4 rounded-xl border border-ghost/10 whitespace-pre-wrap">
+                                        {selectedReportDetail.description}
+                                    </p>
+                                </div>
+
+                                {/* Location & Coordinates */}
+                                <div>
+                                    <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5">
+                                        Location Telemetry
+                                    </h4>
+                                    <div className="p-3.5 rounded-xl bg-void/50 border border-ghost/10 text-xs font-data space-y-1">
+                                        <div className="flex items-center gap-1.5 text-ghost">
+                                            <MapPin className="w-4 h-4 text-plasma" />
+                                            <span>{selectedReportDetail.location_name}</span>
+                                        </div>
+                                        {selectedReportDetail.lat && selectedReportDetail.lon && (
+                                            <div className="text-ghost/50 pl-5">
+                                                GPS: {Number(selectedReportDetail.lat).toFixed(6)}°, {Number(selectedReportDetail.lon).toFixed(6)}°
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Attached Photograph if any */}
+                                {selectedReportDetail.photo_url && (
+                                    <div>
+                                        <h4 className="text-xs font-heading font-semibold text-ghost/50 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                            <Camera className="w-4 h-4 text-plasma" />
+                                            Submitted Photograph
+                                        </h4>
+                                        <div className="p-2 rounded-xl bg-void/50 border border-ghost/10">
+                                            <img
+                                                src={selectedReportDetail.photo_url}
+                                                alt="Incident evidence"
+                                                className="max-h-56 rounded-lg object-cover w-full"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                }}
+                                            />
+                                            <a
+                                                href={selectedReportDetail.photo_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-[11px] text-plasma hover:underline mt-2 font-data"
+                                            >
+                                                <ExternalLink className="w-3 h-3" /> View full photo
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Submission Timestamp */}
+                                {selectedReportDetail.created_at && (
+                                    <div className="text-[11px] font-data text-ghost/40 pt-2">
+                                        Logged into ledger: {new Date(selectedReportDetail.created_at).toLocaleString()}
                                     </div>
                                 )}
                             </div>
-
-                            {/* Submission Timestamp */}
-                            {selectedReportDetail.created_at && (
-                                <div className="text-[11px] font-data text-ghost/40 pt-2">
-                                    Logged into ledger: {new Date(selectedReportDetail.created_at).toLocaleString()}
-                                </div>
-                            )}
-                        </div>
+                        )}
 
                         {/* Modal Footer */}
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-ghost/10">
@@ -586,9 +623,9 @@ export const IncidentHistory = ({ refreshTrigger }) => {
                             <button
                                 type="button"
                                 onClick={() => setSelectedReportDetail(null)}
-                                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ghost/10 hover:bg-ghost/20 text-ghost text-xs font-heading font-semibold transition-colors cursor-pointer"
+                                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-ghost/10 hover:bg-ghost/20 text-ghost text-xs font-heading font-semibold transition-colors cursor-pointer"
                             >
-                                Close Details
+                                Close Dossier
                             </button>
                         </div>
                     </div>
