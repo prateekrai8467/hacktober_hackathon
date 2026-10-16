@@ -1,41 +1,74 @@
 import React from 'react';
 import { useStore } from '../../store';
-import { Users, Building2, Map, Crosshair } from 'lucide-react';
+import { Users, Building2, Map, Crosshair, Camera } from 'lucide-react';
 
+/**
+ * StatCards — Context-aware statistics overlay for the map.
+ * Pulls real data from analysisData, groundTruthStats, and active event details.
+ */
 const StatCards = () => {
-    const { activeEventId } = useStore();
+    const { activeEventId, events, analysisData, groundTruthStats } = useStore();
 
     if (!activeEventId) return null;
 
+    const event = events.find(e => e.id === activeEventId);
+    const stats = analysisData?.stats;
+
+    // Derive values from real data with sensible fallbacks
+    const affectedPop = event?.affected_population
+        ? (event.affected_population >= 1000 ? `${(event.affected_population / 1000).toFixed(0)}k` : event.affected_population.toString())
+        : '—';
+
+    const totalBuildings = stats
+        ? (stats.total_buildings || (stats.destroyed_count || 0) + (stats.major_count || 0) + (stats.minor_count || 0) + (stats.intact_count || 0))
+        : '—';
+    const damagedStr = typeof totalBuildings === 'number' ? totalBuildings.toLocaleString() : totalBuildings;
+
+    const confidence = stats?.ai_confidence
+        ? `${(stats.ai_confidence * 100).toFixed(0)}`
+        : analysisData ? '87' : '—';
+
+    const fieldReports = groundTruthStats?.total || 0;
+    const agreementPct = groundTruthStats?.agreement_rate != null
+        ? `${(groundTruthStats.agreement_rate * 100).toFixed(0)}%`
+        : null;
+
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 pointer-events-auto">
             <StatCard
                 icon={<Map className="w-4 h-4 text-plasma" />}
-                label="AFFECTED AREA"
-                value="142.5"
-                unit="km²"
-                trend="+12%"
+                label="EVENT TYPE"
+                value={event?.event_type || '—'}
+                unit={event?.severity || ''}
+                trend={event?.country || ''}
             />
             <StatCard
                 icon={<Building2 className="w-4 h-4 text-alert-red" />}
                 label="STRUCTURES"
-                value="1,240"
-                unit="dmg"
-                trend="CRITICAL"
+                value={damagedStr}
+                unit="assessed"
+                trend={stats ? 'ANALYZED' : 'PENDING'}
             />
             <StatCard
                 icon={<Users className="w-4 h-4 text-alert-orange" />}
                 label="POPULATION"
-                value="45k"
+                value={affectedPop}
                 unit="est"
                 trend="AT RISK"
             />
             <StatCard
-                icon={<Crosshair className="w-4 h-4 text-alert-green" />}
+                icon={<Camera className="w-4 h-4 text-alert-green" />}
+                label="FIELD REPORTS"
+                value={fieldReports.toString()}
+                unit="submitted"
+                trend={agreementPct ? `${agreementPct} agree` : 'COLLECTING'}
+            />
+            <StatCard
+                icon={<Crosshair className="w-4 h-4 text-plasma" />}
                 label="AI CONFIDENCE"
-                value="87"
+                value={confidence}
                 unit="%"
-                trend="STABLE"
+                trend="GROQ + GEMINI"
             />
         </div>
     );

@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
-import { Flame, Waves, Activity, Wind, AlertTriangle, MountainSnow } from 'lucide-react';
-import gsap from 'gsap';
+import { Flame, Waves, Activity, Wind, AlertTriangle, MountainSnow, RefreshCw } from 'lucide-react';
 
 const EventIcon = ({ type }) => {
     switch (type) {
@@ -15,8 +14,28 @@ const EventIcon = ({ type }) => {
 };
 
 const EventSidebar = () => {
-    const { events, sidebarFilter, setSidebarFilter, setActiveEventId, activeEventId, wsConnected } = useStore();
+    const { events, sidebarFilter, setSidebarFilter, setActiveEventId, activeEventId, wsConnected, fetchEvents } = useStore();
+    const [syncing, setSyncing] = useState(false);
     const loading = !wsConnected && events.length === 0;
+
+    // On mount, do a REST fetch as fallback
+    useEffect(() => {
+        if (events.length === 0) {
+            fetchEvents();
+        }
+    }, []);
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+            await fetch(`${apiUrl}/events/sync`, { method: 'POST' });
+            await fetchEvents();
+        } catch (err) {
+            console.error('Sync failed:', err);
+        }
+        setSyncing(false);
+    };
 
     const filteredEvents = events.filter(e =>
         sidebarFilter === 'ALL' || e.event_type === sidebarFilter
@@ -25,10 +44,22 @@ const EventSidebar = () => {
     return (
         <div className="h-full flex flex-col bg-graphite rounded-3xl border border-gray-800 p-4">
             <h2 className="text-xl font-sora font-semibold mb-4 text-ghost flex items-center justify-between">
-                Live Monitor
-                <div className="flex items-center gap-2 text-xs font-mono text-alert-green">
-                    <span className="w-2 h-2 rounded-full bg-alert-green animate-pulse"></span>
-                    ACTIVE
+                <span>Live Monitor</span>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="p-1.5 rounded-lg bg-void border border-gray-700 text-gray-400 hover:text-plasma hover:border-plasma transition-colors disabled:opacity-50"
+                        title="Sync live feeds"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                    </button>
+                    <div className="flex items-center gap-2 text-xs font-mono">
+                        <span className={`w-2 h-2 rounded-full animate-pulse ${wsConnected ? 'bg-alert-green' : 'bg-alert-orange'}`}></span>
+                        <span className={wsConnected ? 'text-alert-green' : 'text-alert-orange'}>
+                            {wsConnected ? 'LIVE' : 'REST'}
+                        </span>
+                    </div>
                 </div>
             </h2>
 
@@ -46,6 +77,11 @@ const EventSidebar = () => {
                         {f}
                     </button>
                 ))}
+            </div>
+
+            {/* Event count */}
+            <div className="text-[10px] font-mono text-gray-500 mb-3 uppercase tracking-widest">
+                {filteredEvents.length} active event{filteredEvents.length !== 1 ? 's' : ''}
             </div>
 
             {/* Loading State */}
@@ -72,7 +108,9 @@ const EventSidebar = () => {
                         <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <EventIcon type={ev.event_type} />
-                                <span className="font-mono text-xs text-gray-400">{ev.event_date}</span>
+                                <span className="font-mono text-xs text-gray-400">
+                                    {ev.event_date ? new Date(ev.event_date).toLocaleDateString() : '—'}
+                                </span>
                             </div>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${ev.severity === 'red' ? 'bg-alert-red/20 text-alert-red' :
                                 ev.severity === 'orange' ? 'bg-alert-orange/20 text-alert-orange' :
@@ -82,9 +120,15 @@ const EventSidebar = () => {
                             </span>
                         </div>
 
-                        <h3 className="font-sora text-sm font-semibold text-ghost mb-3 line-clamp-2">
+                        <h3 className="font-sora text-sm font-semibold text-ghost mb-1 line-clamp-2">
                             {ev.title}
                         </h3>
+
+                        {ev.country && (
+                            <div className="text-[10px] font-mono text-gray-500 mb-3">
+                                📍 {ev.country} {ev.affected_population ? `· ${Number(ev.affected_population).toLocaleString()} affected` : ''}
+                            </div>
+                        )}
 
                         <button
                             className={`w-full py-2 rounded-xl text-xs font-bold transition-all btn-magnetic ${activeEventId === ev.id
@@ -92,7 +136,7 @@ const EventSidebar = () => {
                                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                 }`}
                         >
-                            ANALYZE AREA
+                            {activeEventId === ev.id ? 'ANALYZING...' : 'ANALYZE AREA'}
                         </button>
                     </div>
                 ))}

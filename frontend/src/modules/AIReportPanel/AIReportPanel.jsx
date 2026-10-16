@@ -4,27 +4,30 @@ import { FileText, RefreshCw, Eye, Download } from 'lucide-react';
 import gsap from 'gsap';
 
 const AIReportPanel = () => {
-    const { activeEventId } = useStore();
-    const [loading, setLoading] = useState(true);
+    const { activeEventId, aiReport, aiReportLoading, generateAIReport } = useStore();
     const containerRef = useRef(null);
 
     useEffect(() => {
         if (!activeEventId) return;
-        setLoading(true);
-
-        // Simulate AI generation delay
-        setTimeout(() => {
-            setLoading(false);
-
-            // Animate text reveal once loaded
-            if (containerRef.current) {
-                gsap.fromTo('.report-text',
-                    { opacity: 0, y: 10 },
-                    { opacity: 1, y: 0, stagger: 0.1, duration: 0.6, ease: 'power2.out' }
-                );
-            }
-        }, 2500);
+        // Auto-generate on event select
+        generateAIReport(activeEventId);
     }, [activeEventId]);
+
+    useEffect(() => {
+        // Animate text reveal once loaded
+        if (!aiReportLoading && aiReport && containerRef.current) {
+            gsap.fromTo('.report-text',
+                { opacity: 0, y: 10 },
+                { opacity: 1, y: 0, stagger: 0.1, duration: 0.6, ease: 'power2.out' }
+            );
+        }
+    }, [aiReportLoading, aiReport]);
+
+    const handleRegenerate = () => {
+        if (activeEventId) {
+            generateAIReport(activeEventId);
+        }
+    };
 
     if (!activeEventId) {
         return (
@@ -36,6 +39,73 @@ const AIReportPanel = () => {
         );
     }
 
+    const report = aiReport;
+    const loading = aiReportLoading;
+
+    // Parse AI report content - handle both structured and raw text
+    const renderReport = () => {
+        if (!report) return null;
+
+        // If report has structured fields from the backend
+        const summary = report.executive_summary || report.summary || report.report?.executive_summary;
+        const priorities = report.priority_actions || report.report?.priority_actions || [];
+        const visionInsight = report.visual_intelligence || report.vision_analysis || report.report?.visual_intelligence;
+        const modelUsed = report.model || report.llm_model || 'Groq + Gemini 3.8 Flash';
+        const rawText = report.raw_text || report.text || report.report;
+
+        return (
+            <div className="flex flex-col gap-4 text-sm text-gray-300 relative z-10 overflow-y-auto custom-scrollbar flex-1 pb-2">
+                {/* Executive Summary */}
+                <div className="report-text bg-void/50 p-3 rounded-xl border border-gray-800/50">
+                    <h3 className="text-xs font-mono text-plasma mb-1 uppercase tracking-wider">Executive Summary</h3>
+                    <p className="leading-relaxed text-xs">
+                        {summary || (typeof rawText === 'string' ? rawText.slice(0, 500) : 'Report generated. Select sections below for details.')}
+                    </p>
+                </div>
+
+                {/* Priority Actions */}
+                {priorities.length > 0 && (
+                    <div className="report-text">
+                        <h3 className="text-[10px] font-mono text-alert-red mb-1 uppercase tracking-wider flex items-center gap-1">
+                            <AlertTriangleIcon /> Priority Action Required
+                        </h3>
+                        <ul className="list-disc list-inside space-y-1 text-xs text-gray-400 ml-1">
+                            {priorities.map((action, idx) => (
+                                <li key={idx}>{typeof action === 'string' ? action : action.action || action.description}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Vision Intelligence */}
+                {visionInsight && (
+                    <div className="report-text mt-2 pt-3 border-t border-gray-800/50">
+                        <h3 className="text-[10px] font-mono text-plasma mb-2 uppercase tracking-wider flex items-center gap-1">
+                            <Eye className="w-3 h-3" /> Visual Intelligence (Gemini)
+                        </h3>
+                        <p className="text-xs italic text-gray-500 border-l-2 border-plasma/30 pl-2">
+                            "{visionInsight}"
+                        </p>
+                    </div>
+                )}
+
+                {/* Fallback: raw text display */}
+                {!summary && !priorities.length && typeof rawText === 'string' && rawText.length > 500 && (
+                    <div className="report-text">
+                        <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">
+                            {rawText}
+                        </pre>
+                    </div>
+                )}
+
+                <div className="mt-2 text-[9px] font-mono text-gray-600 flex justify-between uppercase tracking-widest pt-2">
+                    <span>LLM: {typeof modelUsed === 'string' ? modelUsed : 'Groq OSS'}</span>
+                    <span>Vision: Gemini 3.8 Flash</span>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div ref={containerRef} className="bg-graphite border border-gray-800 p-5 rounded-3xl flex flex-col shrink-0 relative overflow-hidden">
             {/* Glossy highlight */}
@@ -45,14 +115,18 @@ const AIReportPanel = () => {
                 <h2 className="font-sora font-semibold text-sm flex items-center gap-2 text-ghost">
                     <CpuIcon />
                     Tactical Briefing
+                    {loading && <span className="text-[10px] font-mono text-plasma animate-pulse ml-2">GENERATING...</span>}
                 </h2>
                 <div className="flex gap-2">
-                    {!loading && (
+                    {!loading && report && (
                         <button className="p-1.5 rounded-lg bg-void border border-gray-700 text-gray-400 hover:text-plasma hover:border-plasma transition-colors">
                             <Download className="w-3.5 h-3.5" />
                         </button>
                     )}
-                    <button className={`p-1.5 rounded-lg bg-void border border-gray-700 text-gray-400 hover:text-plasma transition-colors ${loading ? 'animate-spin' : ''}`}>
+                    <button
+                        onClick={handleRegenerate}
+                        className={`p-1.5 rounded-lg bg-void border border-gray-700 text-gray-400 hover:text-plasma transition-colors ${loading ? 'animate-spin' : ''}`}
+                    >
                         <RefreshCw className="w-3.5 h-3.5" />
                     </button>
                 </div>
@@ -68,41 +142,11 @@ const AIReportPanel = () => {
 
                     <div className="mt-auto text-[10px] font-mono text-plasma flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-plasma animate-ping" />
-                        SYNTHESIZING SATELLITE TELEMETRY...
+                        SYNTHESIZING VIA GROQ + GEMINI 3.8 FLASH...
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col gap-4 text-sm text-gray-300 relative z-10 overflow-y-auto custom-scrollbar flex-1 pb-2">
-                    <div className="report-text bg-void/50 p-3 rounded-xl border border-gray-800/50">
-                        <h3 className="text-xs font-mono text-plasma mb-1 uppercase tracking-wider">Executive Summary</h3>
-                        <p className="leading-relaxed text-xs">Satellite assessment indicates significant structural damage across the primary residential corridor. Approximately 142 km² affected with 28% classified as critical severity.</p>
-                    </div>
-
-                    <div className="report-text">
-                        <h3 className="text-[10px] font-mono text-alert-red mb-1 uppercase tracking-wider flex items-center gap-1">
-                            <AlertTriangleIcon /> Priority Action Required
-                        </h3>
-                        <ul className="list-disc list-inside space-y-1 text-xs text-gray-400 ml-1">
-                            <li>Deploy heavy urban rescue to Sector Alpha</li>
-                            <li>Airdrop medical supplies to cutoff zones</li>
-                            <li>Restore bridging at coordinates [38.5, -121.5]</li>
-                        </ul>
-                    </div>
-
-                    <div className="report-text mt-2 pt-3 border-t border-gray-800/50">
-                        <h3 className="text-[10px] font-mono text-plasma mb-2 uppercase tracking-wider flex items-center gap-1">
-                            <Eye className="w-3 h-3" /> Visual Intelligence (Gemini)
-                        </h3>
-                        <p className="text-xs italic text-gray-500 border-l-2 border-plasma/30 pl-2">
-                            "Imagery shows complete roof collapse in southeastern quadrant. Main arterial road blocked by debris. Temporary shelters coalescing in northern park."
-                        </p>
-                    </div>
-
-                    <div className="mt-2 text-[9px] font-mono text-gray-600 flex justify-between uppercase tracking-widest pt-2">
-                        <span>LLM: Llama-3.1-70b</span>
-                        <span>Vision: Gemini 1.5</span>
-                    </div>
-                </div>
+                renderReport()
             )}
         </div>
     );
