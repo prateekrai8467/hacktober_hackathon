@@ -318,6 +318,15 @@ FRONTEND_URL=http://localhost:5173
 
 ---
 
+## System Health & Diagnostics
+
+The platform provides integrated health status and diagnostic checks:
+- **FastAPI Health Endpoint**: `GET /api/health` — Verifies core server readiness, background worker health, and API connectivity.
+- **Database Status**: Checks Neon PostgreSQL connection pool latency and PostGIS extension status.
+- **Storage Status**: Confirms Supabase / S3 bucket availability for media assets.
+
+---
+
 ## License
 
 MIT
