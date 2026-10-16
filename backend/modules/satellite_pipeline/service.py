@@ -233,8 +233,26 @@ function evaluatePixel(sample) {
 }"""
 
 async def _mock_thumbnail(event, phase: str) -> str:
-    """Generate a placeholder thumbnail URL."""
-    event_type = event.get("event_type", "EQ").lower()
-    queries = {"wf": "wildfire aerial smoke", "fl": "flood river overflow", "eq": "earthquake damage aerial", "tc": "cyclone storm aerial"}
-    query = queries.get(event_type, "disaster aerial view")
-    return f"https://source.unsplash.com/800x800/?{query.replace(' ', ',')}&{phase}"
+    """Generate high-resolution satellite before/after disaster imagery."""
+    event_type = (event.get("event_type", "EQ") if event else "EQ").lower()
+    imagery_map = {
+        "wf": {
+            "pre": "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80",
+            "post": "https://images.unsplash.com/photo-1599818818956-62d475076cfd?auto=format&fit=crop&w=1200&q=80"
+        },
+        "fl": {
+            "pre": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
+            "post": "https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=1200&q=80"
+        },
+        "tc": {
+            "pre": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+            "post": "https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1200&q=80"
+        },
+        "eq": {
+            "pre": "https://images.unsplash.com/photo-1477959858617-67f30bc75b82?auto=format&fit=crop&w=1200&q=80",
+            "post": "https://images.unsplash.com/photo-1541888946425-d0fbb186f5f8?auto=format&fit=crop&w=1200&q=80"
+        }
+    }
+    event_photos = imagery_map.get(event_type, imagery_map["eq"])
+    return event_photos.get(phase, event_photos["post"])
+

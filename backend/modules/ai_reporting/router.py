@@ -1,9 +1,38 @@
-"""AI Reporting API routes."""
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from shared.db import fetchrow, fetch
-from modules.ai_reporting.service import generate_report
+from modules.ai_reporting.service import generate_report, generate_report_for_event, chat_with_ai
 
 router = APIRouter(tags=["AI Reporting"])
+
+
+class ChatMessageRequest(BaseModel):
+    message: str
+    event_id: Optional[str] = None
+    history: Optional[List[Dict[str, Any]]] = None
+
+
+@router.post("/reports/generate/{event_id}")
+async def generate_event_report(event_id: str):
+    """Generate or retrieve a situation report for a specific disaster event."""
+    try:
+        report = await generate_report_for_event(event_id)
+        return report
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Report generation failed: {e}")
+
+
+@router.post("/reports/chat")
+async def chat_assistant(req: ChatMessageRequest):
+    """Interactive emergency responder AI assistant."""
+    if not req.message.strip():
+        raise HTTPException(400, "Message cannot be empty")
+    response_text = await chat_with_ai(req.message, req.event_id, req.history)
+    return {"response": response_text}
+
 
 @router.get("/reports/{analysis_id}")
 async def get_report(analysis_id: str):
@@ -18,6 +47,7 @@ async def get_report(analysis_id: str):
         "pdf_url": row["pdf_url"],
         "stats": row["stats"],
     }
+
 
 @router.get("/reports/public/{slug}")
 async def get_public_report(slug: str):
@@ -42,6 +72,7 @@ async def get_public_report(slug: str):
         "generated_at": row.get("updated_at").isoformat() if row.get("updated_at") else None,
     }
 
+
 @router.post("/reports/{analysis_id}/regenerate")
 async def regenerate_report(analysis_id: str, background_tasks: BackgroundTasks):
     """Force regenerate the AI report."""
@@ -52,6 +83,7 @@ async def regenerate_report(analysis_id: str, background_tasks: BackgroundTasks)
     await execute("UPDATE analyses SET report_status = 'pending' WHERE id = $1::uuid", analysis_id)
     background_tasks.add_task(generate_report, analysis_id)
     return {"status": "regenerating", "analysis_id": analysis_id}
+
 
 @router.get("/reports/module/health")
 async def reporting_health():
@@ -64,3 +96,4 @@ async def reporting_health():
         "gemini_configured": bool(gemini_key),
         "reason": "Operational" if groq_key else "No GROQ_API_KEY — using mock reports"
     }
+
