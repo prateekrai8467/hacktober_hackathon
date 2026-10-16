@@ -2,20 +2,19 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Activity,
-    ShieldAlert,
     AlertTriangle,
     PhoneCall,
-    MapPin,
-    Clock,
     CheckCircle2
 } from 'lucide-react';
 import IncidentReportForm from './IncidentReportForm';
+import IncidentHistory from './IncidentHistory';
 
 export const CivilianDashboard = () => {
-    const [recentReports, setRecentReports] = useState([]);
+    // Timestamp passed to IncidentHistory to trigger automatic refresh on new submission
+    const [lastSubmissionTime, setLastSubmissionTime] = useState(null);
 
-    const handleReportSubmitted = (newReport) => {
-        setRecentReports((prev) => [newReport, ...prev]);
+    const handleReportSubmitted = () => {
+        setLastSubmissionTime(Date.now());
     };
 
     return (
@@ -53,11 +52,11 @@ export const CivilianDashboard = () => {
                         Civilian Crisis Portal
                     </h1>
                     <p className="text-ghost/60 font-sora text-sm max-w-3xl">
-                        Monitor local safety conditions, view nearby disaster relief resources, and submit ground-level incident reports directly to emergency crisis intelligence.
+                        Monitor local safety conditions, view nearby disaster relief resources, submit ground-level incident observations, and track the live verification status of reports on this device.
                     </p>
                 </div>
 
-                {/* Top Status & Resource Cards (Preserving & enhancing existing layout) */}
+                {/* Top Status & Resource Cards (Preserving existing layout) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
                     {/* Active Alerts Card */}
                     <div className="bg-graphite rounded-3xl p-6 border border-plasma/20 shadow-float">
@@ -124,54 +123,10 @@ export const CivilianDashboard = () => {
                     <IncidentReportForm onReportSubmitted={handleReportSubmitted} />
                 </div>
 
-                {/* Session Incident History (Shows submitted reports during this session) */}
-                {recentReports.length > 0 && (
-                    <div className="bg-graphite rounded-3xl p-6 border border-ghost/10 shadow-float">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Clock className="w-5 h-5 text-plasma" />
-                            <h3 className="text-lg font-heading font-bold text-ghost">
-                                Your Submitted Reports (This Session)
-                            </h3>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-data bg-plasma/10 text-plasma ml-auto">
-                                {recentReports.length} {recentReports.length === 1 ? 'Report' : 'Reports'}
-                            </span>
-                        </div>
-
-                        <div className="divide-y divide-ghost/10">
-                            {recentReports.map((report) => (
-                                <div key={report.id} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-heading font-semibold text-ghost text-sm">
-                                                {report.title || report.location_name}
-                                            </span>
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-data uppercase font-bold bg-alert-orange/20 text-alert-orange border border-alert-orange/30">
-                                                {report.category}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-ghost/60 font-sora line-clamp-1">
-                                            {report.description}
-                                        </p>
-                                        <div className="flex items-center gap-3 text-[11px] font-data text-ghost/40">
-                                            <span className="flex items-center gap-1">
-                                                <MapPin className="w-3 h-3" />
-                                                {report.location_name}
-                                            </span>
-                                            <span>•</span>
-                                            <span>ID: {report.id.slice(0, 8)}...</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 self-start sm:self-center">
-                                        <span className="px-2.5 py-1 rounded-full text-xs font-data uppercase bg-plasma/10 text-plasma border border-plasma/20">
-                                            {report.status}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Secondary Feature: Incident History & Status Tracking (Commit 2) */}
+                <div className="mb-10">
+                    <IncidentHistory refreshTrigger={lastSubmissionTime} />
+                </div>
             </main>
 
             {/* Footer */}
