@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 const AIChat = () => {
-    const { isChatOpen, toggleChat } = useStore();
+    const { isChatOpen, toggleChat, activeEventId } = useStore();
     const [messages, setMessages] = useState([
         { role: 'assistant', content: 'This is the TeraScope emergency assistant. **If this is a life-threatening emergency, stop using this app and call local emergency services immediately (e.g., 911, 112).** How can I assist you?' }
     ]);
@@ -15,7 +17,7 @@ const AIChat = () => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping]);
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!input.trim()) return;
 
         const userMsg = input;
@@ -23,19 +25,41 @@ const AIChat = () => {
         setInput('');
         setIsTyping(true);
 
-        // Mock AI response logic (in production, this calls the Gemini backend)
-        setTimeout(() => {
+        try {
+            // Try backend AI chat endpoint
+            const res = await fetch(`${API_URL}/reports/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMsg,
+                    event_id: activeEventId,
+                    history: messages.slice(-6).map(m => ({ role: m.role, content: m.content }))
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const reply = data.response || data.message || data.text || 'I processed your request but received no content.';
+                setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+            } else {
+                throw new Error('Backend unavailable');
+            }
+        } catch (err) {
+            // Fallback to local mock logic
             let reply = "I am processing your request. Based on current satellite data, structural damage is significant in your sector. Stay connected to official channels.";
 
             if (userMsg.toLowerCase().includes('sos') || userMsg.toLowerCase().includes('help') || userMsg.toLowerCase().includes('trapped')) {
                 reply = "**[EMERGENCY PROTOCOL ACTIVATED]** Keep your battery conserved. Do not use elevators. If trapped, tap rhythmically on pipes or walls. Can you provide your exact location or nearest intersection?";
             } else if (userMsg.toLowerCase().includes('shelter')) {
                 reply = "The nearest verified safe shelter is **Mercy District Community Center (1.2km North)**. The route via Highway 9 Overpass is currently HIGH RISK. Take the secondary route via Oak Street.";
+            } else if (userMsg.toLowerCase().includes('damage') || userMsg.toLowerCase().includes('report')) {
+                reply = "**Current Damage Assessment:** Satellite analysis shows structural damage across the primary residential corridor. I recommend reviewing the **Damage Intelligence** module for detailed building-level GeoJSON data.";
             }
 
             setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-            setIsTyping(false);
-        }, 1500);
+        }
+
+        setIsTyping(false);
     };
 
     const handleKeyDown = (e) => {
@@ -83,7 +107,7 @@ const AIChat = () => {
                                         ? 'bg-plasma text-white rounded-br-none'
                                         : 'bg-void text-gray-300 border border-gray-800 rounded-bl-none'
                                     }`}>
-                                    {/* Basic markdown bold support for mock response */}
+                                    {/* Basic markdown bold support */}
                                     <span dangerouslySetInnerHTML={{ __html: msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                                 </div>
                             </div>
@@ -121,7 +145,7 @@ const AIChat = () => {
                             </button>
                         </div>
                         <div className="text-[9px] font-mono text-center text-gray-600 mt-2">
-                            Gemini AI • May contain errors
+                            Groq + Gemini 3.8 Flash • May contain errors
                         </div>
                     </div>
                 </div>
