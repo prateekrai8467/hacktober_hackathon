@@ -12,6 +12,7 @@ import InfraRiskPanel from '../../modules/InfraRiskPanel/InfraRiskPanel';
 import RecoveryChart from '../../modules/RecoveryChart/RecoveryChart';
 import BeforeAfterSlider from '../../modules/BeforeAfterSlider/BeforeAfterSlider';
 import Timeline from '../../modules/Timeline/Timeline';
+import ResponderAISummaryPanel from './ResponderAISummaryPanel';
 
 // Layout: Live Monitor Module
 export const LiveMonitorModule = () => {
@@ -37,6 +38,7 @@ export const DamageIntelligenceModule = () => {
   return (
     <div className="min-h-screen pt-24 pb-6 px-4 md:px-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-[1400px] mx-auto animate-fade-in">
       <div className="flex flex-col gap-6 h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar pr-2">
+        <ResponderAISummaryPanel />
         <AIReportPanel />
       </div>
       <div className="flex flex-col gap-6 h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar pr-2">
