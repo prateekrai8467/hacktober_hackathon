@@ -20,6 +20,7 @@ from modules.ai_reporting.router import router as reporting_router
 from modules.ground_truth.router import router as ground_truth_router
 from modules.recovery_tracker.router import router as recovery_router
 from modules.alerts_engine.router import router as alerts_router
+from modules.diagnostics.router import router as diagnostics_router
 
 # Import WebSocket manager
 from fastapi import WebSocket, WebSocketDisconnect
@@ -84,6 +85,7 @@ app.include_router(reporting_router, prefix="/api")
 app.include_router(ground_truth_router, prefix="/api")
 app.include_router(recovery_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
+app.include_router(diagnostics_router, prefix="/api")
 
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):

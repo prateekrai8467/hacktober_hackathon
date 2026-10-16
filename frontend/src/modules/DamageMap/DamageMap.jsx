@@ -14,11 +14,22 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-const DamageMap = () => {
+/**
+ * DamageMap — Full-bleed Leaflet map with building damage GeoJSON overlay.
+ * Exposes mapRef via forwardRef so GroundTruthLayer can attach markers.
+ */
+const DamageMap = React.forwardRef((props, ref) => {
     const mapRef = useRef(null);
     const containerRef = useRef(null);
     const layerGrpRef = useRef(null);
     const { activeEventId, events, analysisData } = useStore();
+
+    // Expose mapRef to parent
+    useEffect(() => {
+        if (ref) {
+            ref.current = mapRef.current;
+        }
+    });
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -41,18 +52,61 @@ const DamageMap = () => {
 
         layerGrpRef.current = L.layerGroup().addTo(mapRef.current);
 
+        if (ref) {
+            ref.current = mapRef.current;
+        }
+
         return () => {
             if (mapRef.current) mapRef.current.remove();
         };
     }, []);
 
-    // Render Buildings overlay
+    // Render event markers for all active events
+    useEffect(() => {
+        if (!mapRef.current || !events.length) return;
+
+        // Add event location markers
+        const eventMarkers = L.layerGroup();
+        events.forEach(ev => {
+            if (!ev.lat || !ev.lon) return;
+
+            const severityColor = ev.severity === 'red' ? '#FF3B30' :
+                                  ev.severity === 'orange' ? '#FF9500' : '#34C759';
+
+            const marker = L.circleMarker([ev.lat, ev.lon], {
+                radius: activeEventId === ev.id ? 12 : 7,
+                color: severityColor,
+                fillColor: severityColor,
+                fillOpacity: activeEventId === ev.id ? 0.8 : 0.4,
+                weight: activeEventId === ev.id ? 3 : 1,
+            });
+
+            marker.bindTooltip(
+                `<div style="font-family:'Sora',sans-serif;font-size:12px;font-weight:600;">${ev.title || 'Event'}</div>
+                 <div style="font-family:'Fira Code',monospace;font-size:10px;color:${severityColor};text-transform:uppercase;">${ev.event_type} · ${ev.severity}</div>`,
+                { direction: 'top', offset: [0, -10] }
+            );
+
+            marker.on('click', () => {
+                useStore.getState().setActiveEventId(ev.id);
+            });
+
+            marker.addTo(eventMarkers);
+        });
+
+        eventMarkers.addTo(mapRef.current);
+
+        return () => {
+            eventMarkers.remove();
+        };
+    }, [events, activeEventId]);
+
+    // Fly to active event + render building damage overlay
     useEffect(() => {
         if (!activeEventId || !mapRef.current || !events.length) return;
 
         const event = events.find(e => e.id === activeEventId);
         if (event && event.lat && event.lon) {
-            // Only fly if we are far away to prevent jitter on data load
             mapRef.current.flyTo([event.lat, event.lon], 14, {
                 duration: 1.5,
                 easeLinearity: 0.25
@@ -89,6 +143,8 @@ const DamageMap = () => {
     return (
         <div ref={containerRef} className="absolute inset-0 bg-void z-0" />
     );
-};
+});
+
+DamageMap.displayName = 'DamageMap';
 
 export default DamageMap;
