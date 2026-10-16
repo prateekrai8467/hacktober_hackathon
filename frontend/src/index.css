@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-void text-ghost font-sora antialiased overflow-x-hidden;
+    /* Custom scrollbar */
+  }
+
+  /* Global noise overlay */
+  body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.05;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sora font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+
+  /* Cinematic Leaflet Map Reset */
+  .leaflet-container {
+    background-color: #05050A !important;
+  }
+
+  .leaflet-bar {
+    border: none !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden;
+  }
+
+  .leaflet-bar a {
+    background-color: #18181B !important;
+    color: #F0EFF4 !important;
+    border-bottom: 1px solid #2A2A35 !important;
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .leaflet-bar a:hover {
+    background-color: #00E5FF !important;
+    color: #05050A !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: #12121A !important;
+    color: #FFFFFF !important;
+    border-radius: 1.5rem !important;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+  }
+
+  .leaflet-popup-tip {
+    background: #12121A !important;
+    border-top: 1px solid rgba(0, 229, 255, 0.3);
+    border-left: 1px solid rgba(0, 229, 255, 0.3);
+  }
+
+  /* Magnetic buttons */
+  .btn-magnetic {
+    @apply relative overflow-hidden transition-all duration-300;
+  }
+
+  .btn-magnetic:hover {
+    transform: scale(1.03) translateY(-1px);
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .btn-solid {
+    @apply bg-plasma text-void font-bold;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+    transition: all 0.3s ease;
+  }
+
+  .btn-solid:hover {
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #05050A;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #2A2A35;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #00E5FF;
+  }
+}
